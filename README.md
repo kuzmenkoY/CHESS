@@ -19,6 +19,10 @@ Project to fetch, store, and analyze Chess.com player data using their public AP
 ### `/experiments/API_test` - API Testing
 - `simple_test.py` - Simple script to test API endpoints
 
+### `/ingestion` - Workers & job utilities
+- `worker.py` - Polls `ingestion_jobs`, calls the Chess.com API, and updates Supabase
+- Can enqueue usernames, refresh stats, expand archive jobs, and persist games/social triggers
+
 ## Quick Start
 
 1. **Setup Supabase**: See `docs/supabase_setup.md`
@@ -32,3 +36,5 @@ Project to fetch, store, and analyze Chess.com player data using their public AP
 - Wire up the new ingestion job queue + archive status columns to keep re-runs idempotent.
 - Expand analytics queries (see `db/queries.sql`) for social feeds and clubs.
 - Build user interface for statistics and Strava-like timelines backed by the `social` schema.
+- Define RLS policies in Supabase so Chess.com data remains readable while `social.*` tables are protected per-user.
+- Deploy `ingestion/worker.py` (via cron, Fly.io, container, etc.) to keep data fresh automatically.

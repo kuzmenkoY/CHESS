@@ -21,7 +21,7 @@
 - Optional stats add-ons: `player_tactics_stats`, `player_lessons_stats`, `player_puzzle_rush_best`, `player_puzzle_rush_daily`
 - `monthly_archives(player_id, year, month, url, fetch_status, retry_count, next_retry_at, checksum, priority, …)`
 - `player_ingestion_state(player_id, last_profile_fetch, next_profile_fetch, last_archives_scan, cursor, status, error, …)`
-- `ingestion_jobs(job_type, player_id, scope JSONB, status, priority, attempts, max_attempts, available_at, locked_at, completed_at)`
+- `ingestion_jobs(job_type, player_id, scope JSONB, dedupe_key, status, priority, attempts, max_attempts, available_at, locked_at, completed_at)`
 - `games(url, time_control, end_time, rated, time_class, rules, fen, pgn, white_player_id, black_player_id, ratings/results, eco, accuracies, …)`
 - `fetch_log(url, etag, last_modified, status_code, fetched_at, error)` with indexes for retention reports
 - `social.app_users(username, player_id link, privacy settings, profile metadata)`
@@ -33,7 +33,7 @@
 - `players.username` and `chesscom_player_id` remain globally unique.
 - `player_stats` unique by `(player_id, rules, time_class)`.
 - `monthly_archives` unique by `(player_id, year, month)` and `url`, plus status index on `(fetch_status, next_retry_at)` for schedulers.
-- `ingestion_jobs` indexed by `(status, available_at)` plus `(player_id)` for targeted requeues.
+- `ingestion_jobs` indexed by `(status, available_at)` plus `(player_id)` for targeted requeues; optional `dedupe_key` enforces uniqueness for idempotent enqueueing.
 - `games.url` unique; indexes on `end_time`, `time_class`, `white_player_id`, `black_player_id`.
 - Social uniques: `social.app_users.username`, `social.app_user_tracked_players(app_user_id, player_id)`, `social.posts` indexes on `(app_user_id, created_at DESC)`, reaction uniques on `(post_id/comment_id, app_user_id, reaction)`.
 
@@ -70,4 +70,3 @@
 ## Notes
 - Schema is PostgreSQL (Supabase). Full DDL lives in `db/schema_postgresql.sql` and is idempotent via `db/init_db.py`.
 - Social schema intentionally lives in the same database for now but is fully namespaced (`social.*`), so we can migrate to a dedicated database or service by replicating just that schema later.
-
