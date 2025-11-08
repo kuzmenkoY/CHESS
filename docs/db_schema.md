@@ -19,9 +19,9 @@
 - `players(id, chesscom_player_id, username, display_username, name, title, status, league, country_url, followers, joined, last_online, …)`
 - `player_stats(player_id, rules, time_class, last_rating, best_rating, record_win/loss/draw, …)` unique by `(player_id, rules, time_class)`
 - Optional stats add-ons: `player_tactics_stats`, `player_lessons_stats`, `player_puzzle_rush_best`, `player_puzzle_rush_daily`
-- `monthly_archives(player_id, year, month, url, fetch_status, retry_count, next_retry_at, checksum, priority, …)`
+- `monthly_archives(player_id, year, month, url, fetch_status, last_fetch_attempt, last_success_at, retry_count, next_retry_at, checksum, priority, …)`
 - `player_ingestion_state(player_id, last_profile_fetch, next_profile_fetch, last_archives_scan, cursor, status, error, …)`
-- `ingestion_jobs(job_type, player_id, scope JSONB, dedupe_key, status, priority, attempts, max_attempts, available_at, locked_at, completed_at)`
+- `ingestion_jobs(job_type, player_id, scope JSONB, dedupe_key UNIQUE, status, priority, attempts, max_attempts, available_at, locked_at, completed_at)`
 - `games(url, time_control, end_time, rated, time_class, rules, fen, pgn, white_player_id, black_player_id, ratings/results, eco, accuracies, …)`
 - `fetch_log(url, etag, last_modified, status_code, fetched_at, error)` with indexes for retention reports
 - `social.app_users(username, player_id link, privacy settings, profile metadata)`
@@ -32,8 +32,8 @@
 ## Keys & Indexes
 - `players.username` and `chesscom_player_id` remain globally unique.
 - `player_stats` unique by `(player_id, rules, time_class)`.
-- `monthly_archives` unique by `(player_id, year, month)` and `url`, plus status index on `(fetch_status, next_retry_at)` for schedulers.
-- `ingestion_jobs` indexed by `(status, available_at)` plus `(player_id)` for targeted requeues; optional `dedupe_key` enforces uniqueness for idempotent enqueueing.
+- `monthly_archives` unique by `(player_id, year, month)` and `url`, plus status index on `(fetch_status, next_retry_at)` for schedulers; `last_fetch_attempt/last_success_at` default to `0` until the first games job succeeds.
+- `ingestion_jobs` indexed by `(status, available_at)` plus `(player_id)` for targeted requeues; `dedupe_key` has a unique constraint so enqueueing the same work twice just bumps priority/availability.
 - `games.url` unique; indexes on `end_time`, `time_class`, `white_player_id`, `black_player_id`.
 - Social uniques: `social.app_users.username`, `social.app_user_tracked_players(app_user_id, player_id)`, `social.posts` indexes on `(app_user_id, created_at DESC)`, reaction uniques on `(post_id/comment_id, app_user_id, reaction)`.
 

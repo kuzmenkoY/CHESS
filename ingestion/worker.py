@@ -38,6 +38,7 @@ REQUEST_TIMEOUT = int(os.getenv("CHESS_API_TIMEOUT", "15"))
 PROFILE_REFRESH_SECONDS = int(os.getenv("PROFILE_REFRESH_SECONDS", str(6 * 3600)))
 STATS_REFRESH_SECONDS = int(os.getenv("STATS_REFRESH_SECONDS", str(2 * 3600)))
 ARCHIVE_REFRESH_SECONDS = int(os.getenv("ARCHIVE_REFRESH_SECONDS", str(12 * 3600)))
+ARCHIVE_MONTH_LIMIT = int(os.getenv("ARCHIVE_MONTH_LIMIT", "12"))  # 0 = unlimited
 JOB_POLL_INTERVAL = int(os.getenv("INGESTION_POLL_SECONDS", "5"))
 MAX_ARCHIVE_JOB_PRIORITY = int(os.getenv("ARCHIVE_JOB_PRIORITY", "5"))
 
@@ -806,6 +807,15 @@ class IngestionWorker:
         username = self._current_username(job, scope)
         LOGGER.info("Refreshing archives for %s", username)
         archives = list(self.api_client.fetch_archives(username))
+        total_archives = len(archives)
+        if ARCHIVE_MONTH_LIMIT > 0 and total_archives > ARCHIVE_MONTH_LIMIT:
+            archives = archives[-ARCHIVE_MONTH_LIMIT:]
+            LOGGER.info(
+                "Limiting archives for %s to the most recent %s months (of %s available)",
+                username,
+                ARCHIVE_MONTH_LIMIT,
+                total_archives,
+            )
         player_id = job.get("player_id") or fetch_player_id_by_username(username)
         if not player_id:
             profile = self.api_client.fetch_profile(username)

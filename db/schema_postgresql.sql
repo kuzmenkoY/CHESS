@@ -107,8 +107,8 @@ CREATE TABLE IF NOT EXISTS monthly_archives (
   created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
   updated_at BIGINT,
   fetch_status VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending|running|succeeded|failed|skipped
-  last_fetch_attempt BIGINT,
-  last_success_at BIGINT,
+  last_fetch_attempt BIGINT NOT NULL DEFAULT 0,
+  last_success_at BIGINT NOT NULL DEFAULT 0,
   next_retry_at BIGINT,
   retry_count INTEGER NOT NULL DEFAULT 0,
   priority SMALLINT NOT NULL DEFAULT 5 CHECK (priority BETWEEN 1 AND 9),
@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS ingestion_jobs (
   player_id BIGINT REFERENCES players(id) ON DELETE CASCADE,
   job_type VARCHAR(30) NOT NULL, -- profile|stats|archives|games
   scope JSONB,
-  dedupe_key VARCHAR(255),
+  dedupe_key VARCHAR(255) UNIQUE,
   status VARCHAR(20) NOT NULL DEFAULT 'queued', -- queued|locked|succeeded|failed|cancelled
   priority SMALLINT NOT NULL DEFAULT 5 CHECK (priority BETWEEN 1 AND 9),
   attempts SMALLINT NOT NULL DEFAULT 0,
@@ -156,7 +156,6 @@ CREATE TABLE IF NOT EXISTS ingestion_jobs (
 CREATE INDEX IF NOT EXISTS idx_ingestion_jobs_status ON ingestion_jobs(status, available_at);
 CREATE INDEX IF NOT EXISTS idx_ingestion_jobs_player ON ingestion_jobs(player_id);
 CREATE INDEX IF NOT EXISTS idx_ingestion_jobs_type ON ingestion_jobs(job_type);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ingestion_jobs_dedupe ON ingestion_jobs(dedupe_key) WHERE dedupe_key IS NOT NULL;
 
 -- Games (finished)
 CREATE TABLE IF NOT EXISTS games (
@@ -170,7 +169,7 @@ CREATE TABLE IF NOT EXISTS games (
   time_class VARCHAR(20),                   -- API: time_class (bullet/blitz/rapid/daily)
   rules VARCHAR(50),                        -- API: rules (chess/chess960/etc)
   eco_url TEXT,                             -- API: eco (full URL)
-  eco_code VARCHAR(10),                     -- extracted from eco_url or parsed from PGN
+  eco_code VARCHAR(128),                     -- extracted from eco_url or parsed from PGN
   fen TEXT,                                 -- API: fen (final position)
   initial_setup TEXT,                        -- API: initial_setup (starting FEN)
   tcn TEXT,                                 -- API: tcn
@@ -193,6 +192,14 @@ CREATE INDEX IF NOT EXISTS idx_games_white_player ON games(white_player_id);
 CREATE INDEX IF NOT EXISTS idx_games_black_player ON games(black_player_id);
 CREATE INDEX IF NOT EXISTS idx_games_time_class ON games(time_class);
 CREATE INDEX IF NOT EXISTS idx_games_url ON games(url);
+
+DO $$
+BEGIN
+  ALTER TABLE games
+    ALTER COLUMN eco_code TYPE VARCHAR(128);
+EXCEPTION
+  WHEN undefined_column THEN NULL;
+END $$;
 
 -- Fetch/caching diagnostics (ETag, Last-Modified)
 CREATE TABLE IF NOT EXISTS fetch_log (

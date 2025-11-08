@@ -77,6 +77,10 @@ python db/db_connection.py
    python ingestion/worker.py run --loop
    ```
    The worker pulls rows from `ingestion_jobs`, refreshes Chess.com data, and fan-outs archive/game jobs automatically.
+4. Control how many historical months you ingest per player with `ARCHIVE_MONTH_LIMIT` (default 12). Set it to a smaller number (e.g., 3) while prototyping to avoid a huge backlog:
+   ```bash
+   ARCHIVE_MONTH_LIMIT=3 python ingestion/worker.py enqueue --username YevgenChess
+   ```
 
 ## Recommended Supabase RLS policies
 
