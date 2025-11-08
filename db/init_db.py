@@ -20,32 +20,14 @@ def init_schema():
         return False
     
     print(f"📖 Reading schema from: {schema_path}")
-    with open(schema_path, 'r') as f:
-        schema_sql = f.read()
-    
-    # Split by semicolons and execute each statement
-    statements = [s.strip() for s in schema_sql.split(';') if s.strip() and not s.strip().startswith('--')]
-    
-    print(f"📝 Executing {len(statements)} SQL statements...")
+    schema_sql = schema_path.read_text()
     
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
-                for i, statement in enumerate(statements, 1):
-                    try:
-                        cur.execute(statement)
-                        print(f"  ✅ Statement {i}/{len(statements)}")
-                    except Exception as e:
-                        # Some statements might fail if tables already exist
-                        if "already exists" in str(e).lower():
-                            print(f"  ⚠️  Statement {i}/{len(statements)}: {e}")
-                        else:
-                            print(f"  ❌ Statement {i}/{len(statements)} failed: {e}")
-                            raise
-        
+                cur.execute(schema_sql)
         print("\n✅ Database schema initialized successfully!")
         return True
-        
     except Exception as e:
         print(f"\n❌ Failed to initialize schema: {e}")
         return False
@@ -54,4 +36,3 @@ def init_schema():
 if __name__ == "__main__":
     print("🚀 Initializing database schema...\n")
     init_schema()
-
