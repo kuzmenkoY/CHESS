@@ -1,0 +1,4 @@
+# CHESS Project Overview
+- Purpose: data pipeline + backend foundation for a Strava-like chess social app that ingests public Chess.com data, stores it in Supabase/PostgreSQL, and enables analytics/feeds for tracked players.
+- Key dirs: `db/` (schema, connection helper, init script, sample queries), `docs/` (API rules, schema explainer, Supabase setup), `experiments/` (API probing scripts & Postman collection), plus root README and Python requirements.
+- Data model: normalized tables for players, stats, tactics/lessons/puzzle rush, monthly archives, games, fetch logs, and local app tracking (users + tracked players). Schema lives in `db/schema_postgresql.sql` and mirrors the description in `docs/db_schema.md`.
