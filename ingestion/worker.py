@@ -58,6 +58,10 @@ def utc_now_seconds() -> int:
     return int(time.time())
 
 
+def utc_now_ms() -> int:
+    return int(time.time() * 1000)
+
+
 def lower_username(username: Optional[str]) -> Optional[str]:
     return username.lower() if isinstance(username, str) else None
 
@@ -463,6 +467,131 @@ def upsert_player_stats(conn, player_id: int, stats_payload: Dict[str, Any]) -> 
                     now_ts,
                 ),
             )
+
+
+def upsert_lichess_player(conn, data: Dict[str, Any]) -> int:
+    username = data.get("id", "").lower()
+    if not username:
+        raise ValueError("Lichess profile missing 'id' field")
+
+    play_time = data.get("playTime") or {}
+    now_ms = utc_now_ms()
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO lichess_players (
+                username, display_username, title, patron,
+                tos_violation, disabled, verified,
+                created_at, seen_at, play_time_total,
+                url, bio, country, flair, ingested_at
+            )
+            VALUES (
+                %(username)s, %(display_username)s, %(title)s, %(patron)s,
+                %(tos_violation)s, %(disabled)s, %(verified)s,
+                %(created_at)s, %(seen_at)s, %(play_time_total)s,
+                %(url)s, %(bio)s, %(country)s, %(flair)s, %(now_ms)s
+            )
+            ON CONFLICT (username) DO UPDATE SET
+                display_username = EXCLUDED.display_username,
+                title = EXCLUDED.title,
+                patron = EXCLUDED.patron,
+                tos_violation = EXCLUDED.tos_violation,
+                disabled = EXCLUDED.disabled,
+                verified = EXCLUDED.verified,
+                seen_at = EXCLUDED.seen_at,
+                play_time_total = EXCLUDED.play_time_total,
+                url = EXCLUDED.url,
+                bio = EXCLUDED.bio,
+                country = EXCLUDED.country,
+                flair = EXCLUDED.flair,
+                ingested_at = EXCLUDED.ingested_at
+            RETURNING id
+            """,
+            {
+                "username": username,
+                "display_username": data.get("username"),
+                "title": data.get("title"),
+                "patron": data.get("patron", False),
+                "tos_violation": data.get("tosViolation", False),
+                "disabled": data.get("disabled", False),
+                "verified": data.get("verified", False),
+                "created_at": data.get("createdAt"),
+                "seen_at": data.get("seenAt"),
+                "play_time_total": play_time.get("total"),
+                "url": data.get("url"),
+                "bio": data.get("profile", {}).get("bio") if isinstance(data.get("profile"), dict) else None,
+                "country": data.get("profile", {}).get("country") if isinstance(data.get("profile"), dict) else None,
+                "flair": data.get("flair"),
+                "now_ms": now_ms,
+            },
+        )
+        return cur.fetchone()["id"]
+
+
+def upsert_lichess_player_stats(conn, player_id: int, perfs: Dict[str, Any]) -> None:
+    now_ms = utc_now_ms()
+    for perf_name, perf_data in perfs.items():
+        if not isinstance(perf_data, dict) or "rating" not in perf_data:
+            continue
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO lichess_player_stats (
+                    player_id, perf, rating, rd, prog, games, prov, fetched_at
+                )
+                VALUES (%(player_id)s, %(perf)s, %(rating)s, %(rd)s, %(prog)s, %(games)s, %(prov)s, %(fetched_at)s)
+                ON CONFLICT (player_id, perf) DO UPDATE SET
+                    rating = EXCLUDED.rating,
+                    rd = EXCLUDED.rd,
+                    prog = EXCLUDED.prog,
+                    games = EXCLUDED.games,
+                    prov = EXCLUDED.prov,
+                    fetched_at = EXCLUDED.fetched_at
+                """,
+                {
+                    "player_id": player_id,
+                    "perf": perf_name,
+                    "rating": perf_data.get("rating"),
+                    "rd": perf_data.get("rd"),
+                    "prog": perf_data.get("prog"),
+                    "games": perf_data.get("games"),
+                    "prov": perf_data.get("prov", False),
+                    "fetched_at": now_ms,
+                },
+            )
+
+
+def upsert_lichess_ingestion_state(
+    conn,
+    player_id: int,
+    *,
+    profile_touch: bool = False,
+    status: str = "idle",
+    error: Optional[str] = None,
+) -> None:
+    now_ms = utc_now_ms()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO lichess_player_ingestion_state (
+                player_id, last_profile_fetch, status, error, updated_at
+            )
+            VALUES (%(player_id)s, %(last_profile_fetch)s, %(status)s, %(error)s, %(now_ms)s)
+            ON CONFLICT (player_id) DO UPDATE SET
+                last_profile_fetch = COALESCE(EXCLUDED.last_profile_fetch, lichess_player_ingestion_state.last_profile_fetch),
+                status = EXCLUDED.status,
+                error = EXCLUDED.error,
+                updated_at = EXCLUDED.updated_at
+            """,
+            {
+                "player_id": player_id,
+                "last_profile_fetch": now_ms if profile_touch else None,
+                "status": status,
+                "error": error,
+                "now_ms": now_ms,
+            },
+        )
 
 
 def build_dedupe_key(job_type: str, player_id: Optional[int], scope: Dict[str, Any]) -> str:
