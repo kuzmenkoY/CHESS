@@ -826,8 +826,14 @@ def upsert_game(conn, payload: Dict[str, Any], white_player_id: Optional[int], b
 
 
 class IngestionWorker:
-    def __init__(self, api_client: Optional[ChessAPIClient] = None, poll_interval: int = JOB_POLL_INTERVAL):
+    def __init__(
+        self,
+        api_client: Optional[ChessAPIClient] = None,
+        lichess_client: Optional[LichessAPIClient] = None,
+        poll_interval: int = JOB_POLL_INTERVAL,
+    ):
         self.api_client = api_client or ChessAPIClient()
+        self.lichess_client = lichess_client or LichessAPIClient()
         self.poll_interval = poll_interval
 
     def run(self, once: bool = False) -> None:
@@ -927,6 +933,8 @@ class IngestionWorker:
             self._process_archives_job(job, scope)
         elif job_type == "games":
             self._process_games_job(job, scope)
+        elif job_type == "lichess_profile":
+            self._process_lichess_profile_job(job, scope)
         else:
             raise ValueError(f"Unsupported job type: {job_type}")
 
@@ -1059,6 +1067,27 @@ class IngestionWorker:
                 """,
                 {"now": now_ts, "player_id": player_id, "year": year, "month": month},
             )
+
+    def _process_lichess_profile_job(self, job: Dict[str, Any], scope: Dict[str, Any]) -> None:
+        username = lower_username(scope.get("username"))
+        if not username:
+            raise ValueError("lichess_profile job missing username in scope")
+
+        LOGGER.info("Refreshing Lichess profile for %s", username)
+        data = self.lichess_client.fetch_user(username)
+
+        with get_db_connection() as conn:
+            player_id = upsert_lichess_player(conn, data)
+            perfs = data.get("perfs") or {}
+            upsert_lichess_player_stats(conn, player_id, perfs)
+            upsert_lichess_ingestion_state(conn, player_id, profile_touch=True, status="idle", error=None)
+
+        LOGGER.info(
+            "Lichess profile ingested for %s (db id=%s, %d perf types)",
+            username,
+            player_id,
+            len([p for p in (data.get("perfs") or {}).values() if isinstance(p, dict) and "rating" in p]),
+        )
 
 
 def parse_args() -> argparse.Namespace:
