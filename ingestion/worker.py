@@ -42,6 +42,11 @@ ARCHIVE_MONTH_LIMIT = int(os.getenv("ARCHIVE_MONTH_LIMIT", "12"))  # 0 = unlimit
 JOB_POLL_INTERVAL = int(os.getenv("INGESTION_POLL_SECONDS", "5"))
 MAX_ARCHIVE_JOB_PRIORITY = int(os.getenv("ARCHIVE_JOB_PRIORITY", "5"))
 
+LICHESS_BASE_URL = os.getenv("LICHESS_API_BASE_URL", "https://lichess.org/api")
+LICHESS_USER_AGENT = os.getenv("LICHESS_API_USER_AGENT", "ChessPipeline/0.1 (contact@example.com)")
+LICHESS_REQUEST_TIMEOUT = int(os.getenv("LICHESS_API_TIMEOUT", "15"))
+LICHESS_PROFILE_REFRESH_SECONDS = int(os.getenv("LICHESS_PROFILE_REFRESH_SECONDS", "60"))
+
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -119,6 +124,34 @@ class ChessAPIClient:
         if status == 200 and data:
             return data
         raise ValueError(f"Archive fetch failed: {archive_url} HTTP {status}")
+
+
+class LichessAPIClient:
+    """Lightweight wrapper for Lichess public API."""
+
+    def __init__(self) -> None:
+        self.session = requests.Session()
+        self.session.headers.update(
+            {
+                "User-Agent": LICHESS_USER_AGENT,
+                "Accept": "application/json",
+            }
+        )
+
+    def fetch_user(self, username: str) -> Dict[str, Any]:
+        """Fetch profile + stats in one call. Returns the full JSON response."""
+        url = f"{LICHESS_BASE_URL}/user/{username}"
+        try:
+            response = self.session.get(url, timeout=LICHESS_REQUEST_TIMEOUT)
+        except requests.RequestException as exc:
+            LOGGER.error("Lichess request failed for %s: %s", url, exc)
+            raise
+
+        log_fetch(url, response.status_code, dict(response.headers))
+
+        if response.status_code == 200:
+            return response.json()
+        raise ValueError(f"Lichess profile fetch failed for {username}: HTTP {response.status_code}")
 
 
 def log_fetch(
