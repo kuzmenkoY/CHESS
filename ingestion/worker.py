@@ -1,16 +1,20 @@
 """
-Chess.com ingestion worker.
+Chess ingestion worker.
 
-The worker pulls jobs from `ingestion_jobs`, calls the public Chess.com API, and
-persists results into Supabase/PostgreSQL.  Job types:
-  - profile: refreshes /player/{username}
-  - stats: refreshes /player/{username}/stats
-  - archives: refreshes /player/{username}/games/archives
-  - games: fetches an archive URL and stores finished games
+The worker pulls jobs from `ingestion_jobs`, calls the Chess.com or Lichess
+public API, and persists results into Supabase/PostgreSQL.  Job types:
+  - profile: refreshes Chess.com /player/{username}
+  - stats: refreshes Chess.com /player/{username}/stats
+  - archives: refreshes Chess.com /player/{username}/games/archives
+  - games: fetches a Chess.com archive URL and stores finished games
+  - lichess_profile: refreshes Lichess /api/user/{username} (profile + stats)
 
 Usage examples:
-    # enqueue seed jobs for one or more usernames
+    # enqueue seed jobs for Chess.com user
     python ingestion/worker.py enqueue --username YevgenChess
+
+    # enqueue seed job for Lichess user
+    python ingestion/worker.py enqueue --platform lichess --username thibault
 
     # process a single job (useful for cron)
     python ingestion/worker.py run --once
@@ -650,6 +654,12 @@ def enqueue_seed_jobs(username: str) -> None:
     enqueue_job("archives", player_id=None, scope={"username": username}, priority=3, delay_seconds=30)
 
 
+def enqueue_lichess_seed_job(username: str) -> None:
+    username = lower_username(username)
+    LOGGER.info("Enqueuing Lichess seed job for %s", username)
+    enqueue_job("lichess_profile", player_id=None, scope={"username": username}, priority=1)
+
+
 def fetch_player_id_by_username(username: str) -> Optional[int]:
     username = lower_username(username)
     if not username:
@@ -1096,6 +1106,12 @@ def parse_args() -> argparse.Namespace:
 
     enqueue_parser = subparsers.add_parser("enqueue", help="enqueue seed jobs for usernames")
     enqueue_parser.add_argument("--username", action="append", required=True, help="Chess.com username(s)")
+    enqueue_parser.add_argument(
+        "--platform",
+        choices=["chesscom", "lichess"],
+        default="chesscom",
+        help="Platform to enqueue jobs for (default: chesscom)",
+    )
 
     run_parser = subparsers.add_parser("run", help="run the ingestion worker")
     run_parser.add_argument("--once", action="store_true", help="process at most one job")
@@ -1108,7 +1124,10 @@ def main() -> None:
     args = parse_args()
     if args.command == "enqueue":
         for username in args.username:
-            enqueue_seed_jobs(username)
+            if args.platform == "lichess":
+                enqueue_lichess_seed_job(username)
+            else:
+                enqueue_seed_jobs(username)
     elif args.command == "run":
         worker = IngestionWorker()
         once = True
