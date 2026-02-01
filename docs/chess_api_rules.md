@@ -36,6 +36,7 @@ HEADERS = {
 - **ETag/Last-Modified**: Use `If-None-Match` and `If-Modified-Since` headers for efficient caching
 - **304 responses**: Safe to use cached data when received
 - **Cache-Control**: Respect `max-age` values in responses
+- **Freshest ratings**: `/player/{username}/stats` can lag; per-game ratings in the latest monthly archive (`/player/{username}/games/YYYY/MM`, last game in `games` array) are usually the most current snapshot available
 
 ## Data Currency
 
@@ -90,4 +91,5 @@ response = requests.get(f"{BASE_URL}/player/{username}", headers=HEADERS, timeou
 ## Game Result Codes
 
 Common codes: `win`, `checkmated`, `agreed`, `repetition`, `timeout`, `resigned`, `stalemate`, `lose`, `insufficient`, `abandoned`
+
 

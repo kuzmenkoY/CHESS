@@ -40,3 +40,8 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Data files
+*.csv
+downloaded_games/
+experiments/API_test/logs/

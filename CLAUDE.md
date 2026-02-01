@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Chess.com API exploration project written in Python. The codebase focuses on interacting with the Chess.com public API to retrieve player profiles, statistics, and game data.
 
+## Communication Preferences
+
+- **Be concise**: Provide direct, focused answers without repetition
+- **Say it once**: Don't repeat the same information in different ways
+- **No fluff**: Skip redundant explanations and summaries
+
 ## Project Structure
 
 ```
