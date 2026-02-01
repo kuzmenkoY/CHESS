@@ -216,6 +216,54 @@ CREATE INDEX IF NOT EXISTS idx_fetch_log_url ON fetch_log(url);
 CREATE INDEX IF NOT EXISTS idx_fetch_log_time ON fetch_log(fetched_at);
 CREATE INDEX IF NOT EXISTS idx_fetch_log_url_time ON fetch_log(url, fetched_at DESC);
 
+-- ============================================================
+-- Lichess tables
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS lichess_players (
+  id               BIGSERIAL PRIMARY KEY,
+  username         TEXT NOT NULL UNIQUE,          -- lowercased
+  display_username TEXT,
+  title            VARCHAR(10),                   -- GM, IM, etc.
+  patron           BOOLEAN DEFAULT FALSE,
+  tos_violation    BOOLEAN DEFAULT FALSE,
+  disabled         BOOLEAN DEFAULT FALSE,
+  verified         BOOLEAN DEFAULT FALSE,
+  created_at       BIGINT,                        -- epoch ms (Lichess native)
+  seen_at          BIGINT,                        -- epoch ms
+  play_time_total  BIGINT,                        -- seconds
+  url              TEXT,
+  bio              TEXT,
+  country          TEXT,
+  flair            TEXT,
+  ingested_at      BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
+);
+
+CREATE INDEX IF NOT EXISTS idx_lichess_players_username ON lichess_players(username);
+
+CREATE TABLE IF NOT EXISTS lichess_player_stats (
+  id         BIGSERIAL PRIMARY KEY,
+  player_id  BIGINT NOT NULL REFERENCES lichess_players(id) ON DELETE CASCADE,
+  perf       TEXT NOT NULL,
+  rating     INTEGER,
+  rd         INTEGER,
+  prog       INTEGER,
+  games      INTEGER,
+  prov       BOOLEAN DEFAULT FALSE,
+  fetched_at BIGINT,
+  UNIQUE (player_id, perf)
+);
+
+CREATE INDEX IF NOT EXISTS idx_lichess_player_stats_player ON lichess_player_stats(player_id);
+
+CREATE TABLE IF NOT EXISTS lichess_player_ingestion_state (
+  player_id           BIGINT PRIMARY KEY REFERENCES lichess_players(id) ON DELETE CASCADE,
+  last_profile_fetch  BIGINT,                     -- epoch ms
+  status              VARCHAR(20) NOT NULL DEFAULT 'idle',
+  error               TEXT,
+  updated_at          BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
+);
+
 -- Local app tracking: who we track (self/friends/follows)
 CREATE TABLE IF NOT EXISTS social.app_users (
   id BIGSERIAL PRIMARY KEY,
